@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: notenest-app
+    env: node
+    plan: free
+    buildCommand: npm run build:all
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false # User enters this in Render dashboard
