@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import noteRoutes from './routes/noteRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
@@ -47,9 +48,13 @@ app.use(express.json());
 
 // API Root Health Check
 app.get('/api/health', (req, res) => {
+  const isDbConnected = mongoose.connection.readyState === 1;
   res.status(200).json({
     status: 'success',
-    message: 'NoteNest API is running smoothly',
+    database: isDbConnected ? 'connected' : 'disconnected',
+    message: isDbConnected
+      ? 'NoteNest API is running smoothly'
+      : 'NoteNest server is running. Database connection is pending (check MONGO_URI).',
     timestamp: new Date().toISOString(),
   });
 });
@@ -59,6 +64,7 @@ app.use('/api/notes', noteRoutes);
 
 // Optional: Serve frontend static build if frontend/dist exists
 if (fs.existsSync(distPath)) {
+  console.log(`📁 Serving frontend static build from: ${distPath}`);
   app.use(express.static(distPath));
   app.get('*', (req, res, next) => {
     // Only serve index.html for non-API routes
@@ -66,6 +72,21 @@ if (fs.existsSync(distPath)) {
       return next();
     }
     res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  console.warn(`⚠️ Warning: frontend/dist not found at ${distPath}`);
+  app.get('/', (req, res) => {
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>NoteNest API</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 4rem 1rem; line-height: 1.6; color: #1e293b;">
+          <h1 style="color: #4f46e5;">🚀 NoteNest API Server is Live</h1>
+          <p>The Express REST API is running on Render.</p>
+          <p><a href="/api/health" style="color: #4f46e5;">Check /api/health</a> | <a href="/api/notes" style="color: #4f46e5;">View /api/notes</a></p>
+        </body>
+      </html>
+    `);
   });
 }
 

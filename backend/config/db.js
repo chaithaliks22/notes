@@ -11,50 +11,53 @@ import mongoose from 'mongoose';
 export const connectDB = async () => {
   const uri = process.env.MONGO_URI;
 
-  try {
-    if (uri && uri !== 'your_mongodb_connection_string') {
-      console.log('Connecting to configured MongoDB URI...');
-      const conn = await mongoose.connect(uri);
-      console.log(`MongoDB connected successfully: ${conn.connection.host}`);
-      return;
-    }
-
-    // Try local MongoDB first
+  // 1. Try configured cloud MongoDB Atlas URI
+  if (uri && uri !== 'your_mongodb_connection_string') {
     try {
-      const conn = await mongoose.connect('mongodb://127.0.0.1:27017/notes-app', {
-        serverSelectionTimeoutMS: 2500,
+      console.log('Connecting to configured MongoDB URI...');
+      const conn = await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 8000,
       });
-      console.log(`MongoDB connected successfully (Local): ${conn.connection.host}`);
+      console.log(`MongoDB connected successfully: ${conn.connection.host}`);
+      return conn;
+    } catch (err) {
+      console.error(`MongoDB Atlas connection failed: ${err.message}`);
+      console.log('Will keep server online to serve static pages and retry on incoming requests.');
       return;
-    } catch (localErr) {
-      console.log('Local MongoDB not running. Initializing lightweight in-memory MongoDB instance (v7.0.14)...');
-      
-      try {
-        // Dynamic import to allow smooth execution even if memory server isn't used in production
-        const { MongoMemoryServer } = await import('mongodb-memory-server');
-        const mongod = await MongoMemoryServer.create({
-          binary: {
-            version: '7.0.14',
-          },
-        });
-        const memoryUri = mongod.getUri();
-        const conn = await mongoose.connect(memoryUri);
-        console.log(`MongoDB connected successfully (In-Memory DB): ${conn.connection.host}`);
-        console.log('Tip: Set MONGO_URI in Environment Variables to connect to MongoDB Atlas.');
-      } catch (memErr) {
-        console.error('\n=============================================================');
-        console.error('❌ MONGODB CONNECTION ERROR:');
-        console.error('No external MongoDB connection was provided.');
-        console.error('Please configure the MONGO_URI environment variable on Render:');
-        console.error('1. Go to Render Dashboard -> Your Service -> Environment');
-        console.error('2. Add Key: MONGO_URI');
-        console.error('3. Add Value: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/notes-app');
-        console.error('=============================================================\n');
-        throw memErr;
-      }
     }
-  } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
-    process.exit(1);
+  }
+
+  // 2. Try local MongoDB daemon
+  try {
+    const conn = await mongoose.connect('mongodb://127.0.0.1:27017/notes-app', {
+      serverSelectionTimeoutMS: 2000,
+    });
+    console.log(`MongoDB connected successfully (Local): ${conn.connection.host}`);
+    return conn;
+  } catch (localErr) {
+    console.log('Local MongoDB not running.');
+  }
+
+  // 3. Fallback to in-memory MongoDB for local dev testing
+  try {
+    console.log('Attempting lightweight in-memory MongoDB instance for development...');
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    const mongod = await MongoMemoryServer.create({
+      binary: {
+        version: '7.0.14',
+      },
+    });
+    const memoryUri = mongod.getUri();
+    const conn = await mongoose.connect(memoryUri);
+    console.log(`MongoDB connected successfully (In-Memory DB): ${conn.connection.host}`);
+    return conn;
+  } catch (memErr) {
+    console.warn('\n=============================================================');
+    console.warn('⚠️ NOTICE: MongoDB is not connected yet.');
+    console.warn('Please add the MONGO_URI environment variable on Render:');
+    console.warn('1. Go to Render Dashboard -> Your Service -> Environment');
+    console.warn('2. Key: MONGO_URI');
+    console.warn('3. Value: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/notes-app');
+    console.warn('=============================================================\n');
   }
 };
