@@ -3,8 +3,8 @@ services:
     name: notenest-app
     env: node
     plan: free
-    buildCommand: npm run build:all
-    startCommand: npm start
+    buildCommand: node build.js
+    startCommand: node backend/server.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
