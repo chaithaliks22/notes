@@ -27,15 +27,31 @@ export const connectDB = async () => {
       console.log(`MongoDB connected successfully (Local): ${conn.connection.host}`);
       return;
     } catch (localErr) {
-      console.log('Local MongoDB not running. Initializing lightweight in-memory MongoDB instance for development...');
+      console.log('Local MongoDB not running. Initializing lightweight in-memory MongoDB instance (v7.0.14)...');
       
-      // Dynamic import to allow smooth execution even if memory server isn't used in production
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      const mongod = await MongoMemoryServer.create();
-      const memoryUri = mongod.getUri();
-      const conn = await mongoose.connect(memoryUri);
-      console.log(`MongoDB connected successfully (In-Memory Dev DB): ${conn.connection.host}`);
-      console.log('Tip: Set MONGO_URI in backend/.env to connect to MongoDB Atlas or local MongoDB.');
+      try {
+        // Dynamic import to allow smooth execution even if memory server isn't used in production
+        const { MongoMemoryServer } = await import('mongodb-memory-server');
+        const mongod = await MongoMemoryServer.create({
+          binary: {
+            version: '7.0.14',
+          },
+        });
+        const memoryUri = mongod.getUri();
+        const conn = await mongoose.connect(memoryUri);
+        console.log(`MongoDB connected successfully (In-Memory DB): ${conn.connection.host}`);
+        console.log('Tip: Set MONGO_URI in Environment Variables to connect to MongoDB Atlas.');
+      } catch (memErr) {
+        console.error('\n=============================================================');
+        console.error('❌ MONGODB CONNECTION ERROR:');
+        console.error('No external MongoDB connection was provided.');
+        console.error('Please configure the MONGO_URI environment variable on Render:');
+        console.error('1. Go to Render Dashboard -> Your Service -> Environment');
+        console.error('2. Add Key: MONGO_URI');
+        console.error('3. Add Value: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/notes-app');
+        console.error('=============================================================\n');
+        throw memErr;
+      }
     }
   } catch (error) {
     console.error(`MongoDB Connection Error: ${error.message}`);
