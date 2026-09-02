@@ -11,53 +11,35 @@ import mongoose from 'mongoose';
 export const connectDB = async () => {
   const uri = process.env.MONGO_URI;
 
-  // 1. Try configured cloud MongoDB Atlas URI
+  // 1. If configured MongoDB Atlas URI is present, connect to it
   if (uri && uri !== 'your_mongodb_connection_string') {
     try {
       console.log('Connecting to configured MongoDB URI...');
       const conn = await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 8000,
+        serverSelectionTimeoutMS: 5000,
       });
-      console.log(`MongoDB connected successfully: ${conn.connection.host}`);
+      console.log(`✅ MongoDB connected successfully: ${conn.connection.host}`);
       return conn;
     } catch (err) {
-      console.error(`MongoDB Atlas connection failed: ${err.message}`);
-      console.log('Will keep server online to serve static pages and retry on incoming requests.');
+      console.error(`⚠️ MongoDB Atlas connection error: ${err.message}`);
+      console.log('Running with fallback in-memory store until database is accessible.');
       return;
     }
   }
 
-  // 2. Try local MongoDB daemon
-  try {
-    const conn = await mongoose.connect('mongodb://127.0.0.1:27017/notes-app', {
-      serverSelectionTimeoutMS: 2000,
-    });
-    console.log(`MongoDB connected successfully (Local): ${conn.connection.host}`);
-    return conn;
-  } catch (localErr) {
-    console.log('Local MongoDB not running.');
+  // 2. Try local MongoDB daemon if running locally
+  if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
+    try {
+      const conn = await mongoose.connect('mongodb://127.0.0.1:27017/notes-app', {
+        serverSelectionTimeoutMS: 1500,
+      });
+      console.log(`✅ MongoDB connected successfully (Local): ${conn.connection.host}`);
+      return conn;
+    } catch {
+      // Local Mongo not running, fallback to memory
+    }
   }
 
-  // 3. Fallback to in-memory MongoDB for local dev testing
-  try {
-    console.log('Attempting lightweight in-memory MongoDB instance for development...');
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    const mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '7.0.14',
-      },
-    });
-    const memoryUri = mongod.getUri();
-    const conn = await mongoose.connect(memoryUri);
-    console.log(`MongoDB connected successfully (In-Memory DB): ${conn.connection.host}`);
-    return conn;
-  } catch (memErr) {
-    console.warn('\n=============================================================');
-    console.warn('⚠️ NOTICE: MongoDB is not connected yet.');
-    console.warn('Please add the MONGO_URI environment variable on Render:');
-    console.warn('1. Go to Render Dashboard -> Your Service -> Environment');
-    console.warn('2. Key: MONGO_URI');
-    console.warn('3. Value: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/notes-app');
-    console.warn('=============================================================\n');
-  }
+  console.log('ℹ️ No external MongoDB URI detected. Running in fast in-memory mode.');
+  console.log('💡 Tip: Set MONGO_URI in Render Environment Variables to enable permanent MongoDB Atlas storage.');
 };
